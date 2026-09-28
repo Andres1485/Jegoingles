@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADSO Hangman</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;font-family:Arial,Helvetica,sans-serif;
+  background:linear-gradient(135deg,#0b1020,#101b38 55%,#152b4d);
+  color:#f4f7ff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px
+}
+.game{width:min(1000px,100%);background:rgba(15,23,42,.92);border:1px solid #31415f;border-radius:28px;box-shadow:0 25px 70px rgba(0,0,0,.4);overflow:hidden}
+header{padding:24px 28px;border-bottom:1px solid #2b3a56;display:flex;justify-content:space-between;gap:15px;align-items:center}
+.logo{font-weight:900;font-size:25px;letter-spacing:.5px}.logo span{color:#59d8ff}
+.badges{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.badge{background:#17243d;border:1px solid #334765;padding:8px 12px;border-radius:999px;font-size:14px}
+main{padding:28px}
+.progress{height:9px;background:#202e47;border-radius:10px;overflow:hidden;margin-bottom:25px}
+.bar{height:100%;width:6.66%;background:linear-gradient(90deg,#59d8ff,#8b7cff);transition:.3s}
+.layout{display:grid;grid-template-columns:1fr 1.15fr;gap:28px}
+.card{background:#111c31;border:1px solid #2d3e5d;border-radius:22px;padding:24px}
+h1{font-size:clamp(30px,5vw,50px);margin:0 0 8px}
+.subtitle{color:#aebbd0;margin:0 0 20px}
+.hint{background:#182740;border-radius:16px;padding:18px;margin:15px 0 22px}
+.hint b{color:#59d8ff}
+.word{font-size:clamp(25px,5vw,42px);letter-spacing:9px;text-align:center;font-weight:900;min-height:58px;display:flex;justify-content:center;align-items:center;word-break:break-word}
+#sentence{color:#b9c7db;text-align:center;min-height:28px;margin:8px 0 20px}
+canvas{width:100%;max-width:330px;height:300px;display:block;margin:auto}
+.stats{display:flex;justify-content:space-between;margin:15px 0;color:#b8c5d9}
+.keyboard{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.key{
+  border:1px solid #3a4e70;background:#1a2944;color:#fff;border-radius:11px;
+  padding:12px 5px;font-weight:800;cursor:pointer;transition:.15s
+}
+.key:hover:not(:disabled){transform:translateY(-2px);background:#263b61}
+.key:disabled{opacity:.35;cursor:not-allowed}
+.key.correct{background:#174f54;border-color:#35c7bd}.key.wrong{background:#4c2630;border-color:#bd6072}
+.message{text-align:center;min-height:30px;margin:16px 0;font-weight:700}
+button.next{width:100%;border:0;background:linear-gradient(90deg,#59d8ff,#8b7cff);color:#08101e;font-weight:900;padding:14px;border-radius:13px;cursor:pointer;font-size:16px;display:none}
+.overlay{position:fixed;inset:0;background:rgba(3,7,18,.82);display:none;align-items:center;justify-content:center;padding:20px}
+.modal{background:#111c31;border:1px solid #41567b;border-radius:25px;padding:35px;max-width:500px;width:100%;text-align:center;box-shadow:0 20px 70px #0008}
+.modal .trophy{font-size:70px}.modal h2{font-size:38px;margin:10px}.modal p{color:#b9c7db}
+.restart{border:0;background:#59d8ff;padding:13px 25px;border-radius:12px;font-weight:900;cursor:pointer}
+@media(max-width:760px){.layout{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}.badges{justify-content:flex-start}.keyboard{grid-template-columns:repeat(6,1fr)}main{padding:18px}.card{padding:18px}}
+</style>
+</head>
+<body>
+<div class="game">
+<header>
+  <div class="logo">💻 ADSO <span>HANGMAN</span></div>
+  <div class="badges">
+    <div class="badge">🎯 Challenge <span id="round">1</span>/15</div>
+    <div class="badge">🏆 Score: <span id="score">0</span></div>
+  </div>
+</header>
+<main>
+  <div class="progress"><div class="bar" id="bar"></div></div>
+  <div class="layout">
+    <section class="card">
+      <h1>Guess the action!</h1>
+      <p class="subtitle">Complete the sentence using Present Continuous.</p>
+      <div class="hint">💡 <b>Hint:</b> <span id="hint">He is writing code.</span></div>
+      <div class="word" id="word"></div>
+      <div id="sentence"></div>
+      <canvas id="hangman" width="330" height="300"></canvas>
+    </section>
+    <section class="card">
+      <h2>🔤 Choose a letter</h2>
+      <p class="subtitle">You have <b id="lives">6</b> lives.</p>
+      <div class="keyboard" id="keyboard"></div>
+      <div class="message" id="message">Good luck, developer! 🚀</div>
+      <button class="next" id="next">Next challenge →</button>
+    </section>
+  </div>
+</main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="trophy" id="trophy">🏆</div>
+    <h2 id="endTitle">Excellent!</h2>
+    <p id="endText"></p>
+    <button class="restart" onclick="location.reload()">🔄 Play again</button>
+  </div>
+</div>
+
+<script>
+const challenges=[
+ ["CODING","She is ________ an application.","She is ___ an application."],
+ ["PROGRAMMING","He is ________ a new system.","He is ___ a new system."],
+ ["DESIGNING","They are ________ a website.","They are ___ a website."],
+ ["ANALYZING","She is ________ the system requirements.","She is ___ the system requirements."],
+ ["TESTING","They are _______ the software.","They are ___ the software."],
+ ["DEBUGGING","He is _________ the program.","He is ___ the program."],
+ ["DEVELOPING","They are ________ a mobile app.","They are ___ a mobile app."],
+ ["WRITING","She is _______ code.","She is ___ code."],
+ ["CREATING","He is ________ a database.","He is ___ a database."],
+ ["LEARNING","They are _______ programming.","They are ___ programming."],
+ ["SOLVING","She is ________ a software problem.","She is ___ a software problem."],
+ ["BUILDING","He is ________ a new application.","He is ___ a new application."],
+ ["DESIGNING","They are ________ the user interface.","They are ___ the user interface."],
+ ["DEPLOYING","She is ________ the application.","She is ___ the application."],
+ ["UPDATING","The developer is  the software.","The developer is ___ the software."]
+];
+
+let index=0,answer="",guessed=new Set(),wrong=0,score=0,locked=false;
+const maxWrong=6;
+const $=id=>document.getElementById(id);
+
+function setup(){
+ answer=challenges[index][0];guessed=new Set();wrong=0;locked=false;
+ $("round").textContent=index+1;$("score").textContent=score;$("lives").textContent=maxWrong;
+ $("hint").textContent=challenges[index][1];
+ $("sentence").textContent="";
+ $("message").textContent="Good luck, developer! 🚀";
+ $("next").style.display="none";
+ $("bar").style.width=((index+1)/15*100)+"%";
+ draw();
+ renderWord();renderKeyboard();
+}
+function renderWord(){
+ $("word").textContent=answer.split("").map(l=>guessed.has(l)?" "+l+" ":" _ ").join("");
+}
+function renderKeyboard(){
+ const kb=$("keyboard");kb.innerHTML="";
+ "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(l=>{
+  const b=document.createElement("button");b.className="key";b.textContent=l;
+  b.disabled=guessed.has(l)||locked;
+  b.onclick=()=>guess(l);
+  if(guessed.has(l)) b.classList.add(answer.includes(l)?"correct":"wrong");
+  kb.appendChild(b);
+ });
+}
+function guess(l){
+ if(locked||guessed.has(l))return;
+ guessed.add(l);
+ if(!answer.includes(l)) wrong++;
+ $("lives").textContent=maxWrong-wrong;
+ renderWord();renderKeyboard();draw();
+ if(answer.split("").every(x=>guessed.has(x))) win();
+ else if(wrong>=maxWrong) lose();
+}
+function win(){
+ locked=true;score+=100;
+ $("score").textContent=score;
+ $("sentence").textContent=challenges[index][1];
+ $("message").textContent="✅ Correct! Great job!";
+ $("message").style.color="#59e0c6";
+ $("next").style.display="block";renderKeyboard();
+}
+function lose(){
+ locked=true;
+ $("word").textContent=answer.split("").join(" ");
+ $("sentence").textContent=challenges[index][1];
+ $("message").textContent="❌ Game over! The correct word was "+answer+".";
+ $("message").style.color="#ff8d9d";
+ $("next").style.display="block";renderKeyboard();
+}
+$("next").onclick=()=>{
+ index++;
+ if(index<15) setup(); else finish();
+};
+function finish(){
+ $("overlay").style.display="flex";
+ $("trophy").textContent=score>=1200?"🏆":"🎉";
+ $("endTitle").textContent=score>=1200?"Excellent, Developer!":"Challenge Complete!";
+ $("endText").textContent=`You completed all 15 ADSO challenges with ${score} points. Keep learning and coding! 💻🚀`;
+}
+function draw(){
+ const c=$("hangman"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);
+ ctx.lineWidth=7;ctx.lineCap="round";ctx.strokeStyle="#8ea2c2";
+ ctx.beginPath();ctx.moveTo(35,270);ctx.lineTo(190,270);ctx.moveTo(70,270);ctx.lineTo(70,35);ctx.lineTo(210,35);ctx.lineTo(210,65);ctx.stroke();
+ if(wrong>=1){ctx.beginPath();ctx.arc(210,95,30,0,Math.PI*2);ctx.stroke()}
+ if(wrong>=2){ctx.beginPath();ctx.moveTo(210,125);ctx.lineTo(210,195);ctx.stroke()}
+ if(wrong>=3){ctx.beginPath();ctx.moveTo(210,140);ctx.lineTo(165,165);ctx.stroke()}
+ if(wrong>=4){ctx.beginPath();ctx.moveTo(210,140);ctx.lineTo(255,165);ctx.stroke()}
+ if(wrong>=5){ctx.beginPath();ctx.moveTo(210,195);ctx.lineTo(170,245);ctx.stroke()}
+ if(wrong>=6){ctx.beginPath();ctx.moveTo(210,195);ctx.lineTo(250,245);ctx.stroke()}
+}
+setup();
+</script>
+</body>
+</html>
